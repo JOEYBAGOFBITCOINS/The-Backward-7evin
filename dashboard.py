@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import plotly.express as px
 from backward7evin_classifier import (
-    fetch_market_data, calculate_correlation_features, classify_signal,
+    fetch_market_data, calculate_correlations, classify_signal,
     MACRO_DRIVERS, CRYPTO_ASSETS
 )
 
@@ -124,7 +124,7 @@ with tab1:
     for crypto in CRYPTO_ASSETS:
         if crypto in df.columns:
             crypto_df = df[['BTC-USD', 'GC=F', '^GSPC', 'DX-Y.NYB', crypto]]
-            corr_features = calculate_correlation_features(crypto_df, crypto)
+            corr_features = calculate_correlations(crypto_df, crypto)
 
             btc_corr = corr_features.get('BTC-USD', 0)
             gold_corr = corr_features.get('GC=F', 0)
