@@ -17,7 +17,7 @@ CRYPTO_ASSETS = ['ETH-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD', 'SOL-USD', 'DOGE-US
 def fetch_market_data(symbols, days=90):
     """Fetch historical closing prices from Yahoo Finance API"""
     # Use fixed date range to ensure data availability (system date may be incorrect)
-    end_date = datetime(2025, 1, 15)  # Known good date with available data
+    end_date = datetime(2024, 12, 15)  # Known good date with available data
     start_date = end_date - timedelta(days=days)
     data = {}
     for symbol in symbols:
