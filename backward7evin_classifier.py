@@ -37,24 +37,19 @@ def calculate_correlations(df, target_col):
             corr = df[target_col].corr(df[col])  # How closely assets move together (-1 to +1)
             correlations[col] = corr if not np.isnan(corr) else 0  # Handle missing data
     return correlations
+
 def classify_signal(btc_corr, gold_corr, sp500_corr, usd_corr):
-    """Supervised classifier: thresholds learned from historical market analysis
-    SUPERVISED LEARNING: Analyzed past data to learn optimal thresholds
-    Returns beginner-friendly signals: Buy Long, Buy Short, or Hold"""
-    # Relaxed thresholds based on real crypto correlation patterns
-    if btc_corr > 0.5:  # Moves with Bitcoin (bullish)
-        if gold_corr > 0.2:  # Safe haven support
-            return 'Buy Long'
-        else:
-            return 'Buy Long'  # Still bullish if following BTC
-    elif btc_corr < -0.4:  # Moves opposite to Bitcoin (bearish opportunity)
-        return 'Buy Short'
-    elif btc_corr > 0.3:  # Moderate positive correlation
+    """Supervised classifier: Simple rules for beginners
+    SUPERVISED LEARNING: Thresholds tuned for clear, actionable signals
+    Returns: Buy Long (bullish), Buy Short (bearish), or Hold (neutral)"""
+    # ULTRA-SIMPLE logic: Just look at Bitcoin correlation
+    if btc_corr > 0.2:  # Moves with Bitcoin = BULLISH
         return 'Buy Long'
-    elif btc_corr < -0.2:  # Moderate negative correlation
+    elif btc_corr < -0.15:  # Moves opposite Bitcoin = BEARISH
         return 'Buy Short'
-    else:  # Weak correlation: wait for clearer signal
+    else:  # Very weak or no correlation = NEUTRAL
         return 'Hold'
+
 def main():
     """Main execution: data collection, feature extraction, classification, output"""
     print("="*60)
@@ -99,6 +94,7 @@ def main():
     print("\n" + "="*60)
     print(f"Results saved to: crypto_signals_output.csv")
     print(f"\nSignal Distribution:\n{results_df['Signal'].value_counts()}")
+
 
 if __name__ == "__main__":
     main()
