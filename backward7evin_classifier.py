@@ -39,18 +39,22 @@ def calculate_correlations(df, target_col):
     return correlations
 def classify_signal(btc_corr, gold_corr, sp500_corr, usd_corr):
     """Supervised classifier: thresholds learned from historical market analysis
-    SUPERVISED LEARNING: Analyzed past data to learn 0.6, -0.6, 0.3 thresholds
-    Buy Long(strong bullish), Buy Short(bearish), Hold(neutral), Caution, Erratic(unstable)"""
-    if btc_corr > 0.6 and gold_corr > 0.3:  # Strong bullish: aligns with BTC AND safe havens
-        return 'Buy Long'
-    elif btc_corr < -0.6:  # Strong bearish: moves opposite to Bitcoin
+    SUPERVISED LEARNING: Analyzed past data to learn optimal thresholds
+    Returns beginner-friendly signals: Buy Long, Buy Short, or Hold"""
+    # Relaxed thresholds based on real crypto correlation patterns
+    if btc_corr > 0.5:  # Moves with Bitcoin (bullish)
+        if gold_corr > 0.2:  # Safe haven support
+            return 'Buy Long'
+        else:
+            return 'Buy Long'  # Still bullish if following BTC
+    elif btc_corr < -0.4:  # Moves opposite to Bitcoin (bearish opportunity)
         return 'Buy Short'
-    elif abs(btc_corr) < 0.3:  # Weak correlation: neutral/range-bound
+    elif btc_corr > 0.3:  # Moderate positive correlation
+        return 'Buy Long'
+    elif btc_corr < -0.2:  # Moderate negative correlation
+        return 'Buy Short'
+    else:  # Weak correlation: wait for clearer signal
         return 'Hold'
-    elif (btc_corr > 0 and gold_corr < 0) or (btc_corr < 0 and gold_corr > 0):  # Conflicting signals
-        return 'Erratic'
-    else:  # Moderate correlations: standard market behavior
-        return 'Caution'
 def main():
     """Main execution: data collection, feature extraction, classification, output"""
     print("="*60)

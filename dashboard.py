@@ -73,8 +73,8 @@ def get_signal_emoji(signal):
 
 # Main header
 st.title("📊 The Backward 7evin")
-st.subheader("Cryptocurrency Correlation Intelligence System")
-st.markdown("**CS379 Machine Learning | Supervised Classification**")
+st.subheader("Crypto Buy/Sell Signals - Simple & Clear")
+st.markdown("**See which cryptos to BUY, SHORT, or HOLD right now**")
 st.divider()
 
 # Sidebar
@@ -83,25 +83,32 @@ with st.sidebar:
     lookback_days = st.slider("Lookback Period (Days)", 30, 180, 90, 30)
     st.divider()
 
-    st.markdown("### 📚 About")
-    st.info("""
-    **The Backward 7evin** uses supervised machine learning to classify
-    cryptocurrency signals based on correlation patterns with macro-economic
-    drivers (Gold, USD Index, S&P 500, Bitcoin).
+    st.markdown("### 📚 How It Works")
+    st.success("""
+    This system tells you which cryptos to BUY, SHORT, or HOLD based on how
+    they move with Bitcoin and other market forces.
 
-    **Algorithm:** Random Forest Classification
+    **Simple:** If a crypto moves WITH Bitcoin = BUY
 
-    **Dataset:** Yahoo Finance (real-time)
+    **Simple:** If it moves OPPOSITE = SHORT
+
+    **Simple:** No clear trend = HOLD
     """)
 
     st.divider()
-    st.markdown("### 📊 Signal Legend")
+    st.markdown("### 📊 What The Signals Mean")
     st.markdown("""
-    🟢 **Buy Long** - Strong bullish momentum
-    🔴 **Buy Short** - Strong bearish momentum
-    ⚪ **Hold** - Neutral/low volatility
-    🟡 **Caution** - Mixed signals
-    🟣 **Erratic** - Unstable correlations
+    🟢 **BUY LONG**
+    → Crypto is trending UP with Bitcoin
+    → Action: Consider buying
+
+    🔴 **SHORT**
+    → Crypto is trending DOWN (opposite to Bitcoin)
+    → Action: Avoid or short sell
+
+    ⚪ **HOLD**
+    → No clear trend yet
+    → Action: Wait for better signal
     """)
 
 # Load data
@@ -144,21 +151,17 @@ with tab1:
 
     results_df = pd.DataFrame(results)
 
-    # Signal distribution
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # Signal distribution - SIMPLIFIED
+    col1, col2, col3 = st.columns(3)
 
     signal_counts = results_df['Signal'].value_counts()
 
     with col1:
-        st.metric("🟢 Buy Long", signal_counts.get('Buy Long', 0))
+        st.metric("🟢 BUY LONG", signal_counts.get('Buy Long', 0), "Bullish")
     with col2:
-        st.metric("🔴 Buy Short", signal_counts.get('Buy Short', 0))
+        st.metric("🔴 SHORT", signal_counts.get('Buy Short', 0), "Bearish")
     with col3:
-        st.metric("⚪ Hold", signal_counts.get('Hold', 0))
-    with col4:
-        st.metric("🟡 Caution", signal_counts.get('Caution', 0))
-    with col5:
-        st.metric("🟣 Erratic", signal_counts.get('Erratic', 0))
+        st.metric("⚪ HOLD", signal_counts.get('Hold', 0), "Wait")
 
     st.divider()
 
@@ -170,26 +173,38 @@ with tab1:
     results_df['signal_order'] = results_df['Signal'].map({s: i for i, s in enumerate(signal_order)})
     results_df = results_df.sort_values('signal_order')
 
-    for idx, row in results_df.iterrows():
-        emoji = get_signal_emoji(row['Signal'])
-        css_class = get_signal_color(row['Signal'])
+    # Group by signal for easier reading
+    buy_long = results_df[results_df['Signal'] == 'Buy Long']
+    buy_short = results_df[results_df['Signal'] == 'Buy Short']
+    hold = results_df[results_df['Signal'] == 'Hold']
 
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            st.markdown(f"""
-            <div class="signal-card {css_class}">
-                {emoji} {row['Asset']}<br/>
-                {row['Signal']}
-            </div>
-            """, unsafe_allow_html=True)
+    if not buy_long.empty:
+        st.subheader("🟢 BUY LONG - Bullish Signals")
+        for idx, row in buy_long.iterrows():
+            strength = "STRONG" if row['BTC_Corr'] > 0.7 else "MODERATE"
+            st.success(f"""
+            **{row['Asset']}** - {strength} BUY
+            📈 Moves WITH Bitcoin (Bullish Trend)
+            💡 Action: Consider long position
+            """)
 
-        with col2:
-            st.markdown(f"""
-            **Correlations:**
-            - BTC: {row['BTC_Corr']:.3f}
-            - Gold: {row['Gold_Corr']:.3f}
-            - S&P 500: {row['SP500_Corr']:.3f}
-            - USD: {row['USD_Corr']:.3f}
+    if not buy_short.empty:
+        st.subheader("🔴 BUY SHORT - Bearish Signals")
+        for idx, row in buy_short.iterrows():
+            strength = "STRONG" if row['BTC_Corr'] < -0.5 else "MODERATE"
+            st.error(f"""
+            **{row['Asset']}** - {strength} SHORT
+            📉 Moves OPPOSITE Bitcoin (Bearish Trend)
+            💡 Action: Consider short position or avoid
+            """)
+
+    if not hold.empty:
+        st.subheader("⚪ HOLD - Neutral Signals")
+        for idx, row in hold.iterrows():
+            st.info(f"""
+            **{row['Asset']}** - WAIT
+            ⏸️ No clear trend (Moving independently)
+            💡 Action: Wait for clearer signal
             """)
 
 # TAB 2: Correlation Analysis
