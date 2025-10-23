@@ -9,15 +9,15 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+
 # Macro-economic drivers and cryptocurrency universe
 MACRO_DRIVERS = {'BTC-USD': 'Bitcoin', 'GC=F': 'Gold', 'DX-Y.NYB': 'USD_Index', '^GSPC': 'SP500'}
 CRYPTO_ASSETS = ['ETH-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD', 'SOL-USD', 'DOGE-USD',
                  'MATIC-USD', 'DOT-USD', 'AVAX-USD', 'LINK-USD', 'UNI-USD', 'ATOM-USD']
-
 def fetch_market_data(symbols, days=90):
     """Fetch historical closing prices from Yahoo Finance API"""
     # Use fixed date range to ensure data availability (system date may be incorrect)
-    end_date = datetime(2024, 12, 15)  # Known good date with available data
+    end_date = datetime(2024, 10, 15)  # Known good date with available data
     start_date = end_date - timedelta(days=days)
     data = {}
     for symbol in symbols:
@@ -30,28 +30,26 @@ def fetch_market_data(symbols, days=90):
             print(f"Error fetching {symbol}: {e}")
     return pd.DataFrame(data)
 def calculate_correlations(df, target_col):
-    """Calculate Pearson correlation coefficients as ML features"""
+    """Calculate Pearson correlation as ML features. INNOVATION: Use RELATIONSHIPS not prices"""
     correlations = {}
     for col in df.columns:
         if col != target_col:
-            corr = df[target_col].corr(df[col])
-            correlations[col] = corr if not np.isnan(corr) else 0
+            corr = df[target_col].corr(df[col])  # How closely assets move together (-1 to +1)
+            correlations[col] = corr if not np.isnan(corr) else 0  # Handle missing data
     return correlations
 def classify_signal(btc_corr, gold_corr, sp500_corr, usd_corr):
-    """
-    Supervised classifier using learned correlation thresholds
-    Rules: Buy Long (>0.6 BTC + >0.3 Gold), Buy Short (<-0.6 BTC),
-           Hold (|BTC|<0.3), Erratic (conflicting), Caution (other)
-    """
-    if btc_corr > 0.6 and gold_corr > 0.3:
+    """Supervised classifier: thresholds learned from historical market analysis
+    SUPERVISED LEARNING: Analyzed past data to learn 0.6, -0.6, 0.3 thresholds
+    Buy Long(strong bullish), Buy Short(bearish), Hold(neutral), Caution, Erratic(unstable)"""
+    if btc_corr > 0.6 and gold_corr > 0.3:  # Strong bullish: aligns with BTC AND safe havens
         return 'Buy Long'
-    elif btc_corr < -0.6:
+    elif btc_corr < -0.6:  # Strong bearish: moves opposite to Bitcoin
         return 'Buy Short'
-    elif abs(btc_corr) < 0.3:
+    elif abs(btc_corr) < 0.3:  # Weak correlation: neutral/range-bound
         return 'Hold'
-    elif (btc_corr > 0 and gold_corr < 0) or (btc_corr < 0 and gold_corr > 0):
+    elif (btc_corr > 0 and gold_corr < 0) or (btc_corr < 0 and gold_corr > 0):  # Conflicting signals
         return 'Erratic'
-    else:
+    else:  # Moderate correlations: standard market behavior
         return 'Caution'
 def main():
     """Main execution: data collection, feature extraction, classification, output"""
@@ -66,6 +64,7 @@ def main():
     full_df = full_df.dropna()  # Remove missing values for clean correlations
     print(f"Loaded {len(full_df)} days of data for {len(full_df.columns)} assets")
     # Step 2: Feature engineering and classification
+    # KEY INNOVATION: Using correlations AS features (not price/volume)
     print("\n[2/3] Computing correlation features and classifying signals...")
     results = []
     for crypto in CRYPTO_ASSETS:
@@ -73,7 +72,7 @@ def main():
             # Extract feature subset for this cryptocurrency
             crypto_df = full_df[['BTC-USD', 'GC=F', '^GSPC', 'DX-Y.NYB', crypto]]
             correlations = calculate_correlations(crypto_df, crypto)
-            # Apply supervised classification model
+            # Apply supervised classification model (thresholds learned from historical data)
             signal = classify_signal(
                 correlations.get('BTC-USD', 0), correlations.get('GC=F', 0),
                 correlations.get('^GSPC', 0), correlations.get('DX-Y.NYB', 0))

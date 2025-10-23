@@ -38,7 +38,7 @@ class CryptoPredictor:
     def fetch_data(self):
         """Fetch historical market data"""
         # Use fixed date range to ensure data availability (system date may be incorrect)
-        end_date = datetime(2024, 12, 15)  # Known good date with available data
+        end_date = datetime(2024, 10, 15)  # Known good date with available data
         start_date = end_date - timedelta(days=self.lookback_days)
 
         symbols = {
