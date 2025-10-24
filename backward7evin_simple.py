@@ -14,7 +14,7 @@ CRYPTO_ASSETS = ['ETH-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD', 'SOL-USD', 'DOGE-US
 
 def fetch_market_data(symbols, days=90):
     """Fetch price data from Yahoo Finance"""
-    end_date = datetime(2024, 10, 15)
+    end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
     data = {}
     for symbol in symbols:

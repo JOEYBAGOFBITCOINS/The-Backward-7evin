@@ -59,8 +59,8 @@ def fetch_market_data(symbols, days=90):
     Returns:
         DataFrame with dates as rows, assets as columns, prices as values
     """
-    # Fixed date range (system date may be incorrect in Codespace)
-    end_date = datetime(2024, 10, 15)
+    # Use current date for end date
+    end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
 
     data = {}
