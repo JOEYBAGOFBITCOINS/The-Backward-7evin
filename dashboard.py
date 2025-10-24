@@ -81,6 +81,13 @@ st.divider()
 with st.sidebar:
     st.header("⚙️ Settings")
     lookback_days = st.slider("Lookback Period (Days)", 30, 180, 90, 30)
+
+    # Cache clear button
+    if st.button("🔄 Refresh Data (Clear Cache)", help="Click if correlations show as 0.000"):
+        st.cache_data.clear()
+        st.success("Cache cleared! Reloading data...")
+        st.rerun()
+
     st.divider()
 
     st.markdown("### 📚 How It Works")
@@ -116,8 +123,24 @@ with st.spinner("Loading market data..."):
     df = load_market_data(days=lookback_days)
 
 if df.empty:
-    st.error("Failed to load market data. Please try again.")
+    st.error("❌ Failed to load market data. Please try again.")
+    st.info("💡 Tip: Check your internet connection and try clicking 'Refresh Data' in the sidebar.")
     st.stop()
+
+# Data quality check
+required_columns = ['BTC-USD', 'GC=F', '^GSPC', 'DX-Y.NYB']
+missing_cols = [col for col in required_columns if col not in df.columns]
+if missing_cols:
+    st.warning(f"⚠️ Warning: Missing macro-economic data for: {', '.join(missing_cols)}")
+    st.info("💡 Correlations may show as 0.000. Try clicking 'Refresh Data' in the sidebar.")
+
+# Show data quality info
+with st.expander("📊 Data Quality Info"):
+    st.write(f"**Data Points:** {len(df)} days")
+    st.write(f"**Assets Loaded:** {len(df.columns)}")
+    st.write(f"**Date Range:** {df.index.min().date()} to {df.index.max().date()}")
+    st.write("**Available Symbols:**")
+    st.code(", ".join(df.columns.tolist()))
 
 # Create tabs
 tab1, tab2, tab3 = st.tabs(["📈 Daily Signals", "📊 Correlation Analysis", "🎯 Model Insights"])

@@ -15,27 +15,83 @@ MACRO_DRIVERS = {'BTC-USD': 'Bitcoin', 'GC=F': 'Gold', 'DX-Y.NYB': 'USD_Index', 
 CRYPTO_ASSETS = ['ETH-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD', 'SOL-USD', 'DOGE-USD',
                  'MATIC-USD', 'DOT-USD', 'AVAX-USD', 'LINK-USD', 'UNI-USD', 'ATOM-USD']
 def fetch_market_data(symbols, days=90):
-    """Fetch historical closing prices from Yahoo Finance API"""
+    """Fetch historical closing prices from Yahoo Finance API with improved error handling"""
     # Use fixed date range to ensure data availability (system date may be incorrect)
     end_date = datetime(2024, 10, 15)  # Known good date with available data
-    start_date = end_date - timedelta(days=days)
+    start_date = end_date - timedelta(days=days + 30)  # Fetch extra days to account for missing data
     data = {}
+    successful_fetches = []
+    failed_fetches = []
+
     for symbol in symbols:
         try:
             ticker = yf.Ticker(symbol)
             df = ticker.history(start=start_date, end=end_date)
-            if not df.empty:
+            if not df.empty and len(df) > 10:  # Ensure we have meaningful data
                 data[symbol] = df['Close']
+                successful_fetches.append(symbol)
+            else:
+                failed_fetches.append(f"{symbol} (empty/insufficient data)")
         except Exception as e:
-            print(f"Error fetching {symbol}: {e}")
-    return pd.DataFrame(data)
+            failed_fetches.append(f"{symbol} ({str(e)[:50]})")
+
+    # Log fetch results
+    if failed_fetches:
+        print(f"⚠ Warning: Failed to fetch {len(failed_fetches)} symbols: {', '.join(failed_fetches[:3])}")
+    if successful_fetches:
+        print(f"✓ Successfully fetched {len(successful_fetches)} symbols")
+
+    # Create dataframe and handle missing data intelligently
+    df = pd.DataFrame(data)
+
+    # Forward fill small gaps (up to 3 days) instead of dropping all rows
+    df = df.ffill(limit=3)
+
+    # Only drop rows where we still have NaN after forward filling
+    initial_len = len(df)
+    df = df.dropna()
+    if len(df) < initial_len:
+        print(f"⚠ Dropped {initial_len - len(df)} rows due to missing data. {len(df)} rows remaining.")
+
+    if len(df) == 0:
+        print("✗ ERROR: No data remaining after cleaning! Check data sources.")
+        return df
+
+    # Trim to requested days
+    df = df.tail(days)
+
+    return df
 def calculate_correlations(df, target_col):
     """Calculate Pearson correlation as ML features. INNOVATION: Use RELATIONSHIPS not prices"""
     correlations = {}
+
+    # Validate target column exists and has sufficient data
+    if target_col not in df.columns:
+        print(f"⚠ Warning: Target column '{target_col}' not found in dataframe")
+        return correlations
+
+    if len(df) < 10:
+        print(f"⚠ Warning: Insufficient data ({len(df)} rows) for meaningful correlations")
+        return correlations
+
     for col in df.columns:
         if col != target_col:
-            corr = df[target_col].corr(df[col])  # How closely assets move together (-1 to +1)
-            correlations[col] = corr if not np.isnan(corr) else 0  # Handle missing data
+            # Check if column has sufficient variance
+            if df[col].std() < 1e-10:
+                print(f"⚠ Warning: '{col}' has no variance (constant values)")
+                correlations[col] = 0.0
+                continue
+
+            # Calculate correlation
+            corr = df[target_col].corr(df[col])
+
+            # Handle NaN (can occur with insufficient variance or data issues)
+            if np.isnan(corr):
+                print(f"⚠ Warning: Correlation between '{target_col}' and '{col}' is NaN")
+                correlations[col] = 0.0
+            else:
+                correlations[col] = corr
+
     return correlations
 
 def classify_signal(btc_corr, gold_corr, sp500_corr, usd_corr):
