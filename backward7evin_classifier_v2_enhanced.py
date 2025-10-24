@@ -64,16 +64,29 @@ def fetch_market_data(symbols, days=90):
     start_date = end_date - timedelta(days=days)
 
     data = {}
+    failed_symbols = []
+
     for symbol in symbols:
         try:
             ticker = yf.Ticker(symbol)
             history = ticker.history(start=start_date, end=end_date)
             if not history.empty:
                 data[symbol] = history['Close']  # We only need closing prices
+            else:
+                failed_symbols.append(f"{symbol} (empty)")
         except Exception as e:
-            print(f"⚠️ Couldn't fetch {symbol}: {e}")
+            failed_symbols.append(f"{symbol} ({str(e)[:30]}...)")
 
-    return pd.DataFrame(data)
+    # Print summary
+    if failed_symbols:
+        print(f"⚠️  Could not fetch {len(failed_symbols)} symbols: {', '.join(failed_symbols[:3])}")
+        if len(failed_symbols) > 3:
+            print(f"   ... and {len(failed_symbols)-3} more")
+
+    df = pd.DataFrame(data)
+    print(f"   Successfully fetched {len(data)} symbols with {len(df)} days of data")
+
+    return df
 
 # ═══════════════════════════════════════════════════════════════════════════
 # STEP 3: FEATURE ENGINEERING (The ML Magic!)
@@ -200,7 +213,15 @@ def main():
     print("📊 [1/3] Fetching market data from Yahoo Finance...")
     all_symbols = list(MACRO_DRIVERS.keys()) + CRYPTO_ASSETS
     full_df = fetch_market_data(all_symbols)
-    full_df = full_df.dropna()  # Remove days with missing data
+
+    # More lenient data cleaning - only drop rows where MORE THAN 50% of data is missing
+    # This prevents losing all data if just 1-2 assets have issues
+    threshold = len(full_df.columns) * 0.5
+    full_df = full_df.dropna(thresh=threshold)
+
+    # Also fill any remaining NaN values with forward fill, then backward fill
+    full_df = full_df.ffill().bfill()
+
     print(f"✓ Loaded {len(full_df)} days of data for {len(full_df.columns)} assets")
 
     # ─── Phase 2: Feature Engineering & Classification ───

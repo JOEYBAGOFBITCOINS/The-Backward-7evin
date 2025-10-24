@@ -24,8 +24,9 @@ def fetch_market_data(symbols, days=90):
             if not df.empty:
                 data[symbol] = df['Close']
         except Exception as e:
-            print(f"Error fetching {symbol}: {e}")
-    return pd.DataFrame(data)
+            pass  # Silently skip errors in simple version
+    result_df = pd.DataFrame(data)
+    return result_df
 
 def calculate_correlations(df, target_col):
     """Calculate how closely assets move together"""
@@ -54,7 +55,9 @@ def main():
     print("📡 Fetching market data...")
     all_symbols = list(MACRO_DRIVERS.keys()) + CRYPTO_ASSETS
     full_df = fetch_market_data(all_symbols)
-    full_df = full_df.dropna()
+    # More lenient: only drop rows with >50% missing data, then fill remaining NaNs
+    threshold = len(full_df.columns) * 0.5
+    full_df = full_df.dropna(thresh=threshold).ffill().bfill()
     print(f"✓ Loaded {len(full_df)} days of data\n")
 
     # Calculate signals

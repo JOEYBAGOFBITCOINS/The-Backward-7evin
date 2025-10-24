@@ -20,15 +20,22 @@ def fetch_market_data(symbols, days=90):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
     data = {}
+    failed_symbols = []
     for symbol in symbols:
         try:
             ticker = yf.Ticker(symbol)
             df = ticker.history(start=start_date, end=end_date)
             if not df.empty:
                 data[symbol] = df['Close']
+            else:
+                failed_symbols.append(symbol)
         except Exception as e:
-            print(f"Error fetching {symbol}: {e}")
-    return pd.DataFrame(data)
+            failed_symbols.append(symbol)
+    if failed_symbols:
+        print(f"⚠️  Could not fetch {len(failed_symbols)} symbols")
+    result_df = pd.DataFrame(data)
+    print(f"   Successfully fetched {len(data)} symbols with {len(result_df)} days")
+    return result_df
 def calculate_correlations(df, target_col):
     """Calculate Pearson correlation as ML features. INNOVATION: Use RELATIONSHIPS not prices"""
     correlations = {}
@@ -60,8 +67,10 @@ def main():
     print("\n[1/3] Fetching market data from Yahoo Finance...")
     all_symbols = list(MACRO_DRIVERS.keys()) + CRYPTO_ASSETS
     full_df = fetch_market_data(all_symbols)
-    full_df = full_df.dropna()  # Remove missing values for clean correlations
-    print(f"Loaded {len(full_df)} days of data for {len(full_df.columns)} assets")
+    # More lenient: only drop rows with >50% missing data, then fill remaining NaNs
+    threshold = len(full_df.columns) * 0.5
+    full_df = full_df.dropna(thresh=threshold).ffill().bfill()
+    print(f"Final dataset: {len(full_df)} days of data for {len(full_df.columns)} assets")
     # Step 2: Feature engineering and classification
     # KEY INNOVATION: Using correlations AS features (not price/volume)
     print("\n[2/3] Computing correlation features and classifying signals...")

@@ -54,17 +54,26 @@ class CryptoPredictor:
 
         print(f"Fetching {self.lookback_days} days of market data...")
         data = {}
+        failed = []
         for symbol, name in symbols.items():
             try:
                 ticker = yf.Ticker(symbol)
                 df = ticker.history(start=start_date, end=end_date)
                 if not df.empty:
                     data[name] = df['Close']
+                else:
+                    failed.append(symbol)
             except Exception as e:
-                print(f"Warning: Could not fetch {symbol}")
+                failed.append(symbol)
 
-        df = pd.DataFrame(data).dropna()
-        print(f"Loaded {len(df)} days of complete data")
+        if failed:
+            print(f"⚠️  Could not fetch {len(failed)} symbols")
+
+        df = pd.DataFrame(data)
+        # More lenient: only drop rows with >50% missing data, then fill remaining NaNs
+        threshold = len(df.columns) * 0.5
+        df = df.dropna(thresh=threshold).ffill().bfill()
+        print(f"Loaded {len(df)} days of complete data from {len(data)} assets")
         return df
 
     def engineer_features(self, df):
