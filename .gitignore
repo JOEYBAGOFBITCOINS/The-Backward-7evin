@@ -44,6 +44,10 @@ env/
 *.xlsx
 *.json
 data/
+!data/
+data/*
+!data/README.md
+!data/market_history_sample.csv
 *.db
 
 # Logs

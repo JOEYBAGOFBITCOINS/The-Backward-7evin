@@ -28,7 +28,7 @@ Innovation: Uses RELATIONSHIPS as features, not just prices
 
 | Feature | Innovation Level | Description |
 |---------|-----------------|-------------|
-| **🎨 Five-Category Classification** | ⭐⭐⭐⭐⭐ | Beyond buy/sell: Long, Short, Hold, Caution, Erratic |
+| **🎨 Six-Category Classification** | ⭐⭐⭐⭐⭐ | Momentum Long/Short, Hold, Caution, Divergence, Volatility |
 | **🔗 Correlation Features** | ⭐⭐⭐⭐ | Uses asset relationships, not prices |
 | **📡 Real-Time API** | ⭐⭐⭐⭐ | Live data, not static CSV |
 | **🎯 Interpretable ML** | ⭐⭐⭐⭐⭐ | Clear rules anyone can understand |
@@ -45,27 +45,31 @@ Innovation: Uses RELATIONSHIPS as features, not just prices
 ### The Logic
 
 ```
-🟢 BUY LONG
-├─ Moves strongly with Bitcoin (rides the crypto wave)
-└─ Also moves with Gold (safe haven support)
-   → Strong bullish alignment = High confidence buy
+🟢 MOMENTUM LONG
+├─ Crypto rallies with Bitcoin
+└─ Gold confirms the move and drawdowns stay shallow
+   → High-conviction long opportunity
 
-🔴 BUY SHORT
-└─ Moves OPPOSITE to Bitcoin
-   → Contrarian opportunity = Short position
+🔴 MOMENTUM SHORT
+└─ Crypto sells off while Bitcoin weakens
+   → Aligns with bearish momentum for tactical shorts
 
-⚪ HOLD
-└─ Barely moves with anything
-   → Neutral zone = Wait and see
+⚪ UNCORRELATED HOLD
+└─ Asset moves independently from macro drivers
+   → Sit tight and wait for confirmation
+
+🟣 MACRO DIVERGENCE
+├─ Bitcoin and Gold disagree on direction
+└─ Signals regime change risk
+   → Great conversation starter in class!
+
+🟠 HIGH VOLATILITY
+└─ Excessive beta or wild swings detected
+   → Manage risk before entering
 
 🟡 CAUTION
-└─ Moderate correlations
-   → Standard pattern = Monitor closely
-
-🟣 ERRATIC
-├─ Bitcoin says UP
-└─ Gold says DOWN (conflicting!)
-   → Confused market = Avoid
+└─ Mixed signals and modest conviction
+   → Monitor but avoid impulsive trades
 ```
 
 ---
@@ -73,16 +77,16 @@ Innovation: Uses RELATIONSHIPS as features, not just prices
 ## 🎨 Visual Output Example
 
 ```
-╔══════════════════════════════════════════════════════════╗
-║               CLASSIFICATION RESULTS                      ║
-╚══════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                CRYPTOCURRENCY SIGNAL DASHBOARD                             ║
+╚════════════════════════════════════════════════════════════════════════════════════════════╝
 
-Asset  BTC_Corr  Gold_Corr  SP500_Corr  USD_Corr    Signal
-  ETH     0.987      0.432       0.654    -0.234  🟢 Buy Long
-  SOL     0.891      0.387       0.601    -0.198  🟢 Buy Long
-  XRP     0.312      0.089       0.234    -0.067  ⚪ Hold
-  ADA     0.289     -0.412       0.156     0.089  🟣 Erratic
- DOGE    -0.687      0.123      -0.456     0.234  🔴 Buy Short
+Asset  BTC Corr  Gold Corr  S&P 500 Corr  USD Corr  14d Momentum  Ann. Vol  30d Drawdown  BTC Beta  BTC✦Gold Align    Signal          Strength
+  ETH    +0.78      +0.41        +0.63      -0.12       +18.3%      1.12        -6.4%      +1.05          +0.52   🟢 Momentum Long    +0.64
+  SOL    +0.69      -0.28        +0.47      +0.08       +11.1%      1.38       -12.7%      +1.42          -0.31   🟣 Macro Divergence +0.21
+  XRP    +0.18      +0.04        +0.12      -0.03        +2.7%      0.95        -3.8%      +0.74          +0.48   ⚪ Uncorrelated Hold +0.05
+  ADA    -0.11      -0.42        +0.09      +0.26        -9.5%      1.57       -18.4%      -0.88          -0.47   🟠 High Volatility   -0.18
+ DOGE    +0.33      +0.15        +0.21      +0.04        +4.6%      1.21        -5.1%      +1.22          +0.36   🟡 Caution           +0.08
 ```
 
 ---
@@ -91,30 +95,34 @@ Asset  BTC_Corr  Gold_Corr  SP500_Corr  USD_Corr    Signal
 
 ### 1️⃣ Data Collection
 ```python
-# Fetch 90 days of historical prices
-fetch_market_data(['BTC-USD', 'ETH-USD', 'GC=F', ...])
-↓
-DataFrame with dates × prices
+# Fetch 210 days of historical prices with offline fallback
+market_df, source, errors = fetch_market_data(symbols)
 ```
 
 ### 2️⃣ Feature Engineering (The Innovation!)
 ```python
-# Calculate correlations (our ML features)
-for crypto in cryptos:
-    btc_correlation = crypto.corr(Bitcoin)
-    gold_correlation = crypto.corr(Gold)
-    sp500_correlation = crypto.corr(S&P500)
-    usd_correlation = crypto.corr(USD_Index)
+# Engineer interpretable features
+returns = prices.pct_change().dropna()
+btc_corr = returns['BTC-USD'].rolling(60).corr(returns[crypto])
+gold_corr = returns['GC=F'].rolling(60).corr(returns[crypto])
+volatility_14 = returns[crypto].rolling(14).std() * np.sqrt(365)
+drawdown_30 = calculate_drawdown(prices[crypto], lookback=30)
 ```
 
 ### 3️⃣ Classification (Supervised Learning)
 ```python
-# Apply learned thresholds
-if btc_corr > 0.6 and gold_corr > 0.3:
-    return 'Buy Long'  # Strong bullish
-elif btc_corr < -0.6:
-    return 'Buy Short'  # Strong bearish
-...
+# Apply interpretable rule set
+if momentum > 0.18 and btc_corr > 0.65 and gold_corr > 0.35:
+    return 'Momentum Long'
+elif momentum < -0.15 and btc_corr < -0.40:
+    return 'Momentum Short'
+elif abs(btc_corr) < 0.20 and abs(gold_corr) < 0.20:
+    return 'Uncorrelated Hold'
+elif btc_gold_alignment < -0.25 and abs(btc_corr) > 0.40:
+    return 'Macro Divergence'
+elif volatility > 1.45 or abs(beta) > 1.8:
+    return 'High Volatility'
+return 'Caution'
 ```
 
 ### 4️⃣ Output
@@ -154,7 +162,7 @@ python -m streamlit run dashboard.py
 |----------------|-------------------|
 | Iris flowers 🌸 | Real-time crypto 💰 |
 | Static CSV file 📄 | Live API 📡 |
-| Binary classification 🔴🟢 | Five categories 🟢🔴⚪🟡🟣 |
+| Binary classification 🔴🟢 | Six interpretive categories 🟢🔴⚪🟡🟣🟠 |
 | matplotlib chart 📊 | Interactive dashboard 🎨 |
 | "It works" ✓ | "I understand why" ✓✓✓ |
 
