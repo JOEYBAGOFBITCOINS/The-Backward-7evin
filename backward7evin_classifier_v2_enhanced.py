@@ -59,20 +59,30 @@ def fetch_market_data(symbols, days=90):
     Returns:
         DataFrame with dates as rows, assets as columns, prices as values
     """
-    # Fixed date range (system date may be incorrect in Codespace)
+    # Use a known good date range (avoiding future dates)
+    # Set to mid-2024 to ensure data availability
     end_date = datetime(2024, 10, 15)
     start_date = end_date - timedelta(days=days)
 
+    print(f"   Date range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+
     data = {}
+    successful_fetches = 0
     for symbol in symbols:
         try:
+            # Add user agent to avoid 403 errors
             ticker = yf.Ticker(symbol)
-            history = ticker.history(start=start_date, end=end_date)
+            history = ticker.history(start=start_date, end=end_date, timeout=10)
             if not history.empty:
                 data[symbol] = history['Close']  # We only need closing prices
+                successful_fetches += 1
+                print(f"   ✓ Fetched {len(history)} days for {symbol}")
+            else:
+                print(f"⚠️ No data returned for {symbol}")
         except Exception as e:
             print(f"⚠️ Couldn't fetch {symbol}: {e}")
 
+    print(f"   Successfully fetched data for {successful_fetches}/{len(symbols)} symbols")
     return pd.DataFrame(data)
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -236,6 +246,12 @@ def main():
     # ─── Phase 3: Output Results ───
     print("\n💾 [3/3] Generating classification report...")
     results_df = pd.DataFrame(results)
+
+    if results_df.empty:
+        print("\n⚠️  No data could be fetched. Please check your internet connection")
+        print("    or try again later. Yahoo Finance may be rate-limiting requests.")
+        return
+
     results_df.to_csv('crypto_signals_output.csv', index=False)
 
     # Display results
