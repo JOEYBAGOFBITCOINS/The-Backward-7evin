@@ -21,10 +21,38 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeEl
 from rich.table import Table
 from rich.text import Text
 
+# Signal result dataclass
+@dataclass
+class SignalResult:
+    """Container for classified signal with all features."""
+    asset: str
+    btc_corr: float
+    gold_corr: float
+    sp500_corr: float
+    usd_corr: float
+    momentum_14: float
+    volatility_14: float
+    drawdown_30: float
+    btc_beta: float
+    btc_gold_alignment: float
+    emoji: str
+    signal: str
+    signal_strength: float
+
 # Macro-economic drivers and cryptocurrency universe
 MACRO_DRIVERS = {'BTC-USD': 'Bitcoin', 'GC=F': 'Gold', 'DX-Y.NYB': 'USD_Index', '^GSPC': 'SP500'}
 CRYPTO_ASSETS = ['ETH-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD', 'SOL-USD', 'DOGE-USD',
                  'MATIC-USD', 'DOT-USD', 'AVAX-USD', 'LINK-USD', 'UNI-USD', 'ATOM-USD']
+
+# Console and styling
+console = Console()
+STYLE_MAP = {
+    '🟢': 'bold green',
+    '🔴': 'bold red',
+    '⚪': 'white',
+    '⚠️': 'bold yellow',
+    '⚡': 'bold magenta',
+}
 
 def fetch_market_data(symbols, days=90):
     """Fetch historical closing prices from Yahoo Finance API"""
@@ -32,15 +60,19 @@ def fetch_market_data(symbols, days=90):
     end_date = datetime(2024, 12, 15)  # Known good date with available data
     start_date = end_date - timedelta(days=days)
     data = {}
+    errors = []
     for symbol in symbols:
         try:
             ticker = yf.Ticker(symbol)
             df = ticker.history(start=start_date, end=end_date)
             if not df.empty:
                 data[symbol] = df['Close']
+            else:
+                errors.append(symbol)
         except Exception as e:
             print(f"Error fetching {symbol}: {e}")
-    return pd.DataFrame(data)
+            errors.append(symbol)
+    return pd.DataFrame(data), "Yahoo Finance", errors
 def calculate_correlations(df, target_col):
     """Calculate Pearson correlation coefficients as ML features"""
     correlations = {}
@@ -64,6 +96,41 @@ def classify_signal(btc_corr, gold_corr, sp500_corr, usd_corr):
     elif (btc_corr > 0 and gold_corr < 0) or (btc_corr < 0 and gold_corr > 0):
         return 'Erratic'
     else:
+        return 'Caution'
+
+def get_signal_emoji(signal: str) -> str:
+    """Map signal to emoji."""
+    emoji_map = {
+        'Buy Long': '🟢',
+        'Buy Short': '🔴',
+        'Hold': '⚪',
+        'Erratic': '⚠️',
+        'Caution': '⚡',
+    }
+    return emoji_map.get(signal, '⚪')
+
+def format_percent(value: float) -> str:
+    """Format a decimal as a percentage string."""
+    return f"{value * 100:+.1f}%"
+
+def render_gold_panel(gold_summary: Dict[str, float]) -> Panel:
+    """Render the Bitcoin-Gold relationship panel."""
+    corr = gold_summary.get('correlation', 0)
+    change = gold_summary.get('change', 0)
+    change_window = gold_summary.get('change_window', 30)
+    btc_momentum = gold_summary.get('btc_momentum', 0)
+    gold_momentum = gold_summary.get('gold_momentum', 0)
+
+    if abs(corr) > 0.5:
+        regime = "Strong correlation regime."
+    elif abs(corr) < 0.2:
+        regime = "Decoupled regime."
+    else:
+        regime = "Moderate correlation regime."
+
+    if abs(change) > 0.2:
+        trajectory = "Correlation is rapidly shifting."
+    else:
         trajectory = "Correlation has been stable over the past month."
 
     text = Text()
@@ -77,6 +144,124 @@ def classify_signal(btc_corr, gold_corr, sp500_corr, usd_corr):
 
     return Panel.fit(text, title="BTC ✦ Gold Relationship", border_style="yellow", padding=(1, 2))
 
+
+def summarize_btc_gold(df: pd.DataFrame) -> Dict[str, float]:
+    """Calculate Bitcoin-Gold correlation summary metrics."""
+    if 'BTC-USD' not in df.columns or 'GC=F' not in df.columns:
+        return {}
+
+    btc_gold_corr = df['BTC-USD'].corr(df['GC=F'])
+
+    # Calculate change over last 30 days
+    if len(df) >= 60:
+        recent_corr = df['BTC-USD'].tail(30).corr(df['GC=F'].tail(30))
+        older_corr = df['BTC-USD'].head(30).corr(df['GC=F'].head(30))
+        change = recent_corr - older_corr
+    else:
+        change = 0
+
+    # Calculate 14-day momentum
+    if len(df) >= 14:
+        btc_momentum = (df['BTC-USD'].iloc[-1] - df['BTC-USD'].iloc[-14]) / df['BTC-USD'].iloc[-14]
+        gold_momentum = (df['GC=F'].iloc[-1] - df['GC=F'].iloc[-14]) / df['GC=F'].iloc[-14]
+    else:
+        btc_momentum = 0
+        gold_momentum = 0
+
+    return {
+        'correlation': btc_gold_corr if not np.isnan(btc_gold_corr) else 0,
+        'change': change if not np.isnan(change) else 0,
+        'change_window': 30,
+        'btc_momentum': btc_momentum if not np.isnan(btc_momentum) else 0,
+        'gold_momentum': gold_momentum if not np.isnan(gold_momentum) else 0,
+    }
+
+def build_signal_results(df: pd.DataFrame, crypto_assets: List[str]) -> Tuple[List[SignalResult], List[str]]:
+    """Build SignalResult objects for each cryptocurrency."""
+    results = []
+    skipped = []
+
+    for crypto in crypto_assets:
+        if crypto not in df.columns:
+            skipped.append(crypto)
+            continue
+
+        # Check for sufficient data
+        crypto_data = df[crypto].dropna()
+        if len(crypto_data) < 30:
+            skipped.append(crypto)
+            continue
+
+        # Calculate correlations
+        asset_df = df[[crypto, 'BTC-USD', 'GC=F', '^GSPC', 'DX-Y.NYB']].dropna()
+        if len(asset_df) < 30:
+            skipped.append(crypto)
+            continue
+
+        correlations = calculate_correlations(asset_df, crypto)
+
+        btc_corr = correlations.get('BTC-USD', 0)
+        gold_corr = correlations.get('GC=F', 0)
+        sp500_corr = correlations.get('^GSPC', 0)
+        usd_corr = correlations.get('DX-Y.NYB', 0)
+
+        # Classify signal
+        signal = classify_signal(btc_corr, gold_corr, sp500_corr, usd_corr)
+        emoji = get_signal_emoji(signal)
+
+        # Calculate additional features
+        if len(asset_df) >= 14:
+            momentum_14 = (asset_df[crypto].iloc[-1] - asset_df[crypto].iloc[-14]) / asset_df[crypto].iloc[-14]
+            returns = asset_df[crypto].pct_change().dropna()
+            volatility_14 = returns.tail(14).std() * np.sqrt(252)
+        else:
+            momentum_14 = 0
+            volatility_14 = 0
+
+        if len(asset_df) >= 30:
+            peak_30 = asset_df[crypto].tail(30).max()
+            drawdown_30 = (asset_df[crypto].iloc[-1] - peak_30) / peak_30
+        else:
+            drawdown_30 = 0
+
+        # Calculate BTC beta
+        if 'BTC-USD' in asset_df.columns and len(asset_df) >= 30:
+            btc_returns = asset_df['BTC-USD'].pct_change().dropna()
+            asset_returns = asset_df[crypto].pct_change().dropna()
+            aligned_data = pd.DataFrame({'btc': btc_returns, 'asset': asset_returns}).dropna()
+            if len(aligned_data) > 1 and aligned_data['btc'].std() > 0:
+                btc_beta = aligned_data['btc'].cov(aligned_data['asset']) / aligned_data['btc'].var()
+            else:
+                btc_beta = 0
+        else:
+            btc_beta = 0
+
+        # BTC-Gold alignment
+        btc_gold_alignment = (btc_corr + gold_corr) / 2
+
+        # Signal strength (simple heuristic based on correlation magnitude)
+        signal_strength = abs(btc_corr) * 0.6 + abs(gold_corr) * 0.4
+
+        # Get asset name
+        asset_name = crypto.replace('-USD', '')
+
+        results.append(SignalResult(
+            asset=asset_name,
+            btc_corr=btc_corr,
+            gold_corr=gold_corr,
+            sp500_corr=sp500_corr,
+            usd_corr=usd_corr,
+            momentum_14=momentum_14 if not np.isnan(momentum_14) else 0,
+            volatility_14=volatility_14 if not np.isnan(volatility_14) else 0,
+            drawdown_30=drawdown_30 if not np.isnan(drawdown_30) else 0,
+            btc_beta=btc_beta if not np.isnan(btc_beta) else 0,
+            btc_gold_alignment=btc_gold_alignment if not np.isnan(btc_gold_alignment) else 0,
+            emoji=emoji,
+            signal=signal,
+            signal_strength=signal_strength if not np.isnan(signal_strength) else 0,
+        ))
+
+    return results, skipped
 
 def render_intro_panel(
     source: str,
