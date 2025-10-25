@@ -7,10 +7,9 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-# Market data
-MACRO_DRIVERS = {'BTC-USD': 'Bitcoin', 'GC=F': 'Gold', 'DX-Y.NYB': 'USD_Index', '^GSPC': 'SP500'}
-CRYPTO_ASSETS = ['ETH-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD', 'SOL-USD', 'DOGE-USD',
-                 'MATIC-USD', 'DOT-USD', 'AVAX-USD', 'LINK-USD', 'UNI-USD', 'ATOM-USD']
+# SIMPLIFIED: Only analyze Bitcoin and Gold
+ASSETS_TO_ANALYZE = ['BTC-USD', 'GC=F']
+MARKET_CONTEXT = ['^GSPC', 'DX-Y.NYB']  # S&P 500 and USD Index for context
 
 def fetch_market_data(symbols, days=90):
     """Fetch price data from Yahoo Finance"""
@@ -46,79 +45,77 @@ def classify_signal(btc_corr, gold_corr, sp500_corr, usd_corr):
         return 'Hold'
 
 def main():
-    print("\n" + "🚀"*30)
-    print("  THE BACKWARD 7EVIN - CRYPTO BUY/SELL SIGNALS")
-    print("🚀"*30 + "\n")
+    print("\n" + "="*60)
+    print("  THE BACKWARD 7EVIN - SIMPLE VERSION")
+    print("  Analyzing ONLY Bitcoin and Gold")
+    print("="*60 + "\n")
 
-    # Fetch data
+    # Fetch data for ONLY Bitcoin and Gold
     print("📡 Fetching market data...")
-    all_symbols = list(MACRO_DRIVERS.keys()) + CRYPTO_ASSETS
+    all_symbols = ASSETS_TO_ANALYZE + MARKET_CONTEXT
     full_df = fetch_market_data(all_symbols)
     full_df = full_df.dropna()
-    print(f"✓ Loaded {len(full_df)} days of data\n")
+    print(f"✓ Loaded {len(full_df)} days of data")
+    print(f"✓ Analyzing: Bitcoin and Gold ONLY\n")
 
-    # Calculate signals
+    # Calculate signals for Bitcoin and Gold ONLY
     results = []
-    for crypto in CRYPTO_ASSETS:
-        if crypto in full_df.columns:
-            crypto_df = full_df[['BTC-USD', 'GC=F', '^GSPC', 'DX-Y.NYB', crypto]]
-            correlations = calculate_correlations(crypto_df, crypto)
-            signal = classify_signal(
-                correlations.get('BTC-USD', 0), correlations.get('GC=F', 0),
-                correlations.get('^GSPC', 0), correlations.get('DX-Y.NYB', 0))
-            results.append({
-                'Asset': crypto.replace('-USD', ''),
-                'BTC_Corr': correlations.get('BTC-USD', 0),
-                'Signal': signal
-            })
+
+    # Analyze Bitcoin
+    if 'BTC-USD' in full_df.columns:
+        btc_df = full_df[['GC=F', '^GSPC', 'DX-Y.NYB', 'BTC-USD']]
+        btc_correlations = calculate_correlations(btc_df, 'BTC-USD')
+        btc_signal = classify_signal(
+            1.0,  # Bitcoin correlates with itself
+            btc_correlations.get('GC=F', 0),
+            btc_correlations.get('^GSPC', 0),
+            btc_correlations.get('DX-Y.NYB', 0))
+        results.append({
+            'Asset': 'Bitcoin',
+            'BTC_Corr': 1.0,
+            'Gold_Corr': btc_correlations.get('GC=F', 0),
+            'Signal': btc_signal
+        })
+
+    # Analyze Gold
+    if 'GC=F' in full_df.columns:
+        gold_df = full_df[['BTC-USD', '^GSPC', 'DX-Y.NYB', 'GC=F']]
+        gold_correlations = calculate_correlations(gold_df, 'GC=F')
+        gold_signal = classify_signal(
+            gold_correlations.get('BTC-USD', 0),
+            1.0,  # Gold correlates with itself
+            gold_correlations.get('^GSPC', 0),
+            gold_correlations.get('DX-Y.NYB', 0))
+        results.append({
+            'Asset': 'Gold',
+            'BTC_Corr': gold_correlations.get('BTC-USD', 0),
+            'Gold_Corr': 1.0,
+            'Signal': gold_signal
+        })
 
     results_df = pd.DataFrame(results)
 
-    # Display in BEGINNER-FRIENDLY format
-    buy_long = results_df[results_df['Signal'] == 'Buy Long']
-    buy_short = results_df[results_df['Signal'] == 'Buy Short']
-    hold = results_df[results_df['Signal'] == 'Hold']
+    # Display results
+    print("="*70)
+    print("ANALYSIS RESULTS - Bitcoin and Gold ONLY")
+    print("="*70 + "\n")
+
+    for _, row in results_df.iterrows():
+        print(f"Asset: {row['Asset']}")
+        print(f"  BTC Correlation: {row['BTC_Corr']:+.3f}")
+        print(f"  Gold Correlation: {row['Gold_Corr']:+.3f}")
+        print(f"  Signal: {row['Signal']}")
+        print()
 
     print("="*70)
-    print("🟢 BUY LONG SIGNALS - These cryptos are BULLISH (moving up with Bitcoin)")
+    print("📊 SUMMARY")
     print("="*70)
-    if not buy_long.empty:
-        for _, row in buy_long.iterrows():
-            strength = "STRONG" if row['BTC_Corr'] > 0.6 else "MODERATE"
-            print(f"  ✓ {row['Asset']:<10} {strength:<12} BTC Correlation: +{row['BTC_Corr']:.2f}")
-            print(f"     → Action: Consider buying or holding long position")
-            print()
-    else:
-        print("  (No bullish signals right now)\n")
-
-    print("="*70)
-    print("🔴 SHORT SIGNALS - These cryptos are BEARISH (moving opposite to Bitcoin)")
-    print("="*70)
-    if not buy_short.empty:
-        for _, row in buy_short.iterrows():
-            strength = "STRONG" if row['BTC_Corr'] < -0.4 else "MODERATE"
-            print(f"  ✓ {row['Asset']:<10} {strength:<12} BTC Correlation: {row['BTC_Corr']:.2f}")
-            print(f"     → Action: Consider shorting or avoiding")
-            print()
-    else:
-        print("  (No bearish signals right now)\n")
-
-    print("="*70)
-    print("⚪ HOLD SIGNALS - These cryptos have NO CLEAR TREND (wait for signal)")
-    print("="*70)
-    if not hold.empty:
-        for _, row in hold.iterrows():
-            print(f"  ⏸ {row['Asset']:<10} NEUTRAL       BTC Correlation: {row['BTC_Corr']:+.2f}")
-            print(f"     → Action: Wait - no clear signal yet")
-            print()
-    else:
-        print("  (All cryptos have clear signals!)\n")
-
-    print("="*70)
-    print(f"📊 SUMMARY: {len(buy_long)} BUY | {len(buy_short)} SHORT | {len(hold)} HOLD")
-    print("="*70)
-    print("\n💡 TIP: Focus on STRONG signals for highest confidence trades")
-    print("📁 Full data saved to: crypto_signals_output.csv\n")
+    for signal_type in ['Buy Long', 'Buy Short', 'Hold']:
+        count = len(results_df[results_df['Signal'] == signal_type])
+        if count > 0:
+            print(f"  {signal_type}: {count}")
+    print()
+    print("📁 Results saved to: crypto_signals_output.csv\n")
 
     results_df.to_csv('crypto_signals_output.csv', index=False)
 

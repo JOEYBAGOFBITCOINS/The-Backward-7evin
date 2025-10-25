@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from backward7evin_classifier import (
     fetch_market_data, calculate_correlations, classify_signal,
-    MACRO_DRIVERS, CRYPTO_ASSETS
+    ASSETS_TO_ANALYZE, MARKET_CONTEXT
 )
 
 # Page configuration
@@ -45,8 +45,8 @@ st.markdown("""
 
 @st.cache_data(ttl=3600)
 def load_market_data(days=90):
-    """Load and cache market data"""
-    all_symbols = list(MACRO_DRIVERS.keys()) + CRYPTO_ASSETS
+    """Load and cache market data - ONLY Bitcoin and Gold"""
+    all_symbols = ASSETS_TO_ANALYZE + MARKET_CONTEXT
     return fetch_market_data(all_symbols, days=days)
 
 def get_signal_color(signal):
@@ -73,8 +73,8 @@ def get_signal_emoji(signal):
 
 # Main header
 st.title("📊 The Backward 7evin")
-st.subheader("Crypto Buy/Sell Signals - Simple & Clear")
-st.markdown("**See which cryptos to BUY, SHORT, or HOLD right now**")
+st.subheader("Bitcoin & Gold Analysis - Simple & Clear")
+st.markdown("**Analyzing ONLY Bitcoin and Gold with correlation-based algorithms**")
 st.divider()
 
 # Sidebar
@@ -85,30 +85,27 @@ with st.sidebar:
 
     st.markdown("### 📚 How It Works")
     st.success("""
-    This system tells you which cryptos to BUY, SHORT, or HOLD based on how
-    they move with Bitcoin and other market forces.
+    This system analyzes ONLY Bitcoin and Gold using correlation algorithms.
 
-    **Simple:** If a crypto moves WITH Bitcoin = BUY
+    **Correlation Analysis:** How assets move together with market indicators
 
-    **Simple:** If it moves OPPOSITE = SHORT
+    **Features:** BTC correlation, Gold correlation, S&P 500, USD Index
 
-    **Simple:** No clear trend = HOLD
+    **Output:** Buy Long, Buy Short, or Hold signals
     """)
 
     st.divider()
-    st.markdown("### 📊 What The Signals Mean")
+    st.markdown("### 📊 Assets Analyzed")
     st.markdown("""
-    🟢 **BUY LONG**
-    → Crypto is trending UP with Bitcoin
-    → Action: Consider buying
+    **Bitcoin (BTC-USD)**
+    - Primary cryptocurrency
 
-    🔴 **SHORT**
-    → Crypto is trending DOWN (opposite to Bitcoin)
-    → Action: Avoid or short sell
+    **Gold (GC=F)**
+    - Safe haven asset
 
-    ⚪ **HOLD**
-    → No clear trend yet
-    → Action: Wait for better signal
+    **Market Context:**
+    - S&P 500 (^GSPC)
+    - USD Index (DX-Y.NYB)
     """)
 
 # Load data
@@ -126,28 +123,44 @@ tab1, tab2, tab3 = st.tabs(["📈 Daily Signals", "📊 Correlation Analysis", "
 with tab1:
     st.header("Current Market Signals")
 
-    # Calculate signals for all cryptos
+    # Calculate signals for Bitcoin and Gold ONLY
     results = []
-    for crypto in CRYPTO_ASSETS:
-        if crypto in df.columns:
-            crypto_df = df[['BTC-USD', 'GC=F', '^GSPC', 'DX-Y.NYB', crypto]]
-            corr_features = calculate_correlations(crypto_df, crypto)
 
-            btc_corr = corr_features.get('BTC-USD', 0)
-            gold_corr = corr_features.get('GC=F', 0)
-            sp500_corr = corr_features.get('^GSPC', 0)
-            usd_corr = corr_features.get('DX-Y.NYB', 0)
+    # Analyze Bitcoin
+    if 'BTC-USD' in df.columns:
+        btc_df = df[['GC=F', '^GSPC', 'DX-Y.NYB', 'BTC-USD']]
+        btc_corr_features = calculate_correlations(btc_df, 'BTC-USD')
+        btc_signal = classify_signal(
+            1.0,
+            btc_corr_features.get('GC=F', 0),
+            btc_corr_features.get('^GSPC', 0),
+            btc_corr_features.get('DX-Y.NYB', 0))
+        results.append({
+            'Asset': 'Bitcoin',
+            'Signal': btc_signal,
+            'BTC_Corr': 1.0,
+            'Gold_Corr': btc_corr_features.get('GC=F', 0),
+            'SP500_Corr': btc_corr_features.get('^GSPC', 0),
+            'USD_Corr': btc_corr_features.get('DX-Y.NYB', 0)
+        })
 
-            signal = classify_signal(btc_corr, gold_corr, sp500_corr, usd_corr)
-
-            results.append({
-                'Asset': crypto.replace('-USD', ''),
-                'Signal': signal,
-                'BTC_Corr': btc_corr,
-                'Gold_Corr': gold_corr,
-                'SP500_Corr': sp500_corr,
-                'USD_Corr': usd_corr
-            })
+    # Analyze Gold
+    if 'GC=F' in df.columns:
+        gold_df = df[['BTC-USD', '^GSPC', 'DX-Y.NYB', 'GC=F']]
+        gold_corr_features = calculate_correlations(gold_df, 'GC=F')
+        gold_signal = classify_signal(
+            gold_corr_features.get('BTC-USD', 0),
+            1.0,
+            gold_corr_features.get('^GSPC', 0),
+            gold_corr_features.get('DX-Y.NYB', 0))
+        results.append({
+            'Asset': 'Gold',
+            'Signal': gold_signal,
+            'BTC_Corr': gold_corr_features.get('BTC-USD', 0),
+            'Gold_Corr': 1.0,
+            'SP500_Corr': gold_corr_features.get('^GSPC', 0),
+            'USD_Corr': gold_corr_features.get('DX-Y.NYB', 0)
+        })
 
     results_df = pd.DataFrame(results)
 
