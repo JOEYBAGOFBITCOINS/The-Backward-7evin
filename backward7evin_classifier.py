@@ -10,10 +10,11 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-# Macro-economic drivers and cryptocurrency universe
-MACRO_DRIVERS = {'BTC-USD': 'Bitcoin', 'GC=F': 'Gold', 'DX-Y.NYB': 'USD_Index', '^GSPC': 'SP500'}
-CRYPTO_ASSETS = ['ETH-USD', 'BNB-USD', 'XRP-USD', 'ADA-USD', 'SOL-USD', 'DOGE-USD',
-                 'MATIC-USD', 'DOT-USD', 'AVAX-USD', 'LINK-USD', 'UNI-USD', 'ATOM-USD']
+# SIMPLIFIED: Only analyze Bitcoin and Gold as required
+# These are the ONLY two assets we analyze
+ASSETS_TO_ANALYZE = ['BTC-USD', 'GC=F']
+# Additional market data for correlation analysis
+MARKET_CONTEXT = ['^GSPC', 'DX-Y.NYB']  # S&P 500 and USD Index for context
 def fetch_market_data(symbols, days=90):
     """Fetch historical closing prices from Yahoo Finance API"""
     # Use fixed date range to ensure data availability (system date may be incorrect)
@@ -56,33 +57,51 @@ def main():
     print("The Backward 7evin - Cryptocurrency Signal Classifier")
     print("Supervised Learning: Correlation-Based Classification")
     print("="*60)
-    # Step 1: Collect macro-economic and cryptocurrency data
+    # Step 1: Collect ONLY Bitcoin and Gold + market context
     print("\n[1/3] Fetching market data from Yahoo Finance...")
-    all_symbols = list(MACRO_DRIVERS.keys()) + CRYPTO_ASSETS
+    all_symbols = ASSETS_TO_ANALYZE + MARKET_CONTEXT
     full_df = fetch_market_data(all_symbols)
     full_df = full_df.dropna()  # Remove missing values for clean correlations
     print(f"Loaded {len(full_df)} days of data for {len(full_df.columns)} assets")
-    # Step 2: Feature engineering and classification
-    # KEY INNOVATION: Using correlations AS features (not price/volume)
+    print(f"Analyzing ONLY: Bitcoin and Gold")
+
+    # Step 2: Analyze Bitcoin and Gold ONLY
     print("\n[2/3] Computing correlation features and classifying signals...")
     results = []
-    for crypto in CRYPTO_ASSETS:
-        if crypto in full_df.columns:
-            # Extract feature subset for this cryptocurrency
-            crypto_df = full_df[['BTC-USD', 'GC=F', '^GSPC', 'DX-Y.NYB', crypto]]
-            correlations = calculate_correlations(crypto_df, crypto)
-            # Apply supervised classification model (thresholds learned from historical data)
-            signal = classify_signal(
-                correlations.get('BTC-USD', 0), correlations.get('GC=F', 0),
-                correlations.get('^GSPC', 0), correlations.get('DX-Y.NYB', 0))
-            # Store results with feature values
-            results.append({
-                'Asset': crypto.replace('-USD', ''),
-                'BTC_Corr': round(correlations.get('BTC-USD', 0), 3),
-                'Gold_Corr': round(correlations.get('GC=F', 0), 3),
-                'SP500_Corr': round(correlations.get('^GSPC', 0), 3),
-                'USD_Corr': round(correlations.get('DX-Y.NYB', 0), 3),
-                'Signal': signal})
+
+    # Analyze Bitcoin
+    if 'BTC-USD' in full_df.columns:
+        btc_df = full_df[['GC=F', '^GSPC', 'DX-Y.NYB', 'BTC-USD']]
+        btc_correlations = calculate_correlations(btc_df, 'BTC-USD')
+        btc_signal = classify_signal(
+            1.0,  # Bitcoin correlates perfectly with itself
+            btc_correlations.get('GC=F', 0),
+            btc_correlations.get('^GSPC', 0),
+            btc_correlations.get('DX-Y.NYB', 0))
+        results.append({
+            'Asset': 'Bitcoin',
+            'BTC_Corr': 1.0,
+            'Gold_Corr': round(btc_correlations.get('GC=F', 0), 3),
+            'SP500_Corr': round(btc_correlations.get('^GSPC', 0), 3),
+            'USD_Corr': round(btc_correlations.get('DX-Y.NYB', 0), 3),
+            'Signal': btc_signal})
+
+    # Analyze Gold
+    if 'GC=F' in full_df.columns:
+        gold_df = full_df[['BTC-USD', '^GSPC', 'DX-Y.NYB', 'GC=F']]
+        gold_correlations = calculate_correlations(gold_df, 'GC=F')
+        gold_signal = classify_signal(
+            gold_correlations.get('BTC-USD', 0),
+            1.0,  # Gold correlates perfectly with itself
+            gold_correlations.get('^GSPC', 0),
+            gold_correlations.get('DX-Y.NYB', 0))
+        results.append({
+            'Asset': 'Gold',
+            'BTC_Corr': round(gold_correlations.get('BTC-USD', 0), 3),
+            'Gold_Corr': 1.0,
+            'SP500_Corr': round(gold_correlations.get('^GSPC', 0), 3),
+            'USD_Corr': round(gold_correlations.get('DX-Y.NYB', 0), 3),
+            'Signal': gold_signal})
     # Step 3: Output and save results
     print("\n[3/3] Generating classification report...")
     results_df = pd.DataFrame(results)
